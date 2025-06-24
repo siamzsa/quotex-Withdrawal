@@ -101,29 +101,19 @@ function createSelect(labelText, id, optionsArr) {
 
 // Append inputs
 
-// Transaction ID (empty input)
 formContainer.appendChild(createInput("Transaction ID:", "trans_id_input", "text", "", "Enter transaction ID"));
-
-// Date picker (type=date)
 formContainer.appendChild(createInput("Date:", "date_input", "date"));
-
-// Time picker (type=time)
 formContainer.appendChild(createInput("Time:", "time_input", "time"));
-
-// Method select with only Binance
 formContainer.appendChild(createSelect("Method:", "method_input", [
-  { value: "Binance", label: "Binance" },
+  { value: "Binance Pay", label: "Binance Pay" },
 ]));
-
-// Amount input (number)
 formContainer.appendChild(createInput("Amount:", "amount_input", "number", "100", "Enter amount"));
 
-// Buttons container
+// Buttons
 let btnContainer = document.createElement("div");
 btnContainer.style.textAlign = "center";
 btnContainer.style.marginTop = "15px";
 
-// Apply button
 let applyBtn = document.createElement("button");
 applyBtn.innerText = "Apply";
 applyBtn.style.padding = "10px 20px";
@@ -138,7 +128,6 @@ applyBtn.style.transition = "background 0.3s ease";
 applyBtn.onmouseenter = () => applyBtn.style.background = "#059669";
 applyBtn.onmouseleave = () => applyBtn.style.background = "#10b981";
 
-// Cancel button
 let cancelBtn = document.createElement("button");
 cancelBtn.innerText = "Cancel";
 cancelBtn.style.padding = "10px 20px";
@@ -158,10 +147,9 @@ btnContainer.appendChild(applyBtn);
 btnContainer.appendChild(cancelBtn);
 formContainer.appendChild(btnContainer);
 
-// Add form to page
 document.body.appendChild(formContainer);
 
-// Button actions
+// Actions
 applyBtn.onclick = function() {
   let trans_id = document.getElementById("trans_id_input").value.trim();
   let date = document.getElementById("date_input").value;
@@ -186,20 +174,31 @@ applyBtn.onclick = function() {
     return;
   }
 
-  let message = "";
-  if(method === "Binance") {
-    message = `The withdrawal is currently being processed on the side of the financial operator. Please wait - the funds should be received within 48 hours.`;
-  } 
+  let formattedDateTime = "";
+  try {
+    let dt = new Date(date + "T" + time);
+    let dd = String(dt.getDate()).padStart(2, '0');
+    let mm = String(dt.getMonth() + 1).padStart(2, '0');
+    let yyyy = dt.getFullYear();
+    let hh = String(dt.getHours()).padStart(2, '0');
+    let min = String(dt.getMinutes()).padStart(2, '0');
+    let sec = String(dt.getSeconds()).padStart(2, '0');
+    formattedDateTime = `${dd}/${mm}/${yyyy}, ${hh}:${min}:${sec}`;
+  } catch (e) {
+    formattedDateTime = `${date}, ${time}`;
+  }
+
+  let message = `The withdrawal is currently being processed on the side of the financial operator. Please wait - the funds should be received within 48 hours.`;
 
   let position = 0;
   let items = document.getElementsByClassName("transactions-item");
   if (items.length > 0) {
     items[position].innerHTML =
       '<div class="transactions-item__id">' + trans_id +
-      '</div><div class="transactions-item__date">' + date + " " + time +
+      '</div><div class="transactions-item__date">' + formattedDateTime +
       '</div><div class="transactions-item__status"><div class="transactions-item__status-processed">' + message +
       '</div><div class="transactions-item__status-block"><div class="transactions-item__status-icon muted"><svg class="icon-pending"><use xlink:href="/profile/images/spritemap.svg#icon-pending"></use></svg></div><span class="transactions-item__status-text pending">waiting confirmation</span></div></div><div class="transactions-item__type">Payout</div><div class="transactions-item__method">' + method +
-      '</div><b class="transactions-item__amount red">-' + '$' + amount + '.00</b>'; // <-- এই লাইন আপডেট হয়েছে
+      '</div><b class="transactions-item__amount red">-' + '$' + amount + '.00</b>';
   } else {
     alert("No .transactions-item element found on this page.");
   }
