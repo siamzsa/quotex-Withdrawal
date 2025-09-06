@@ -1,371 +1,180 @@
-// --- LICENSE CHECK AND TRANSACTION FORM INTEGRATION ---
+// =============================
+// License Verification Popup with Voice Feedback & Header
+// =============================
 
-(async function runLicenseCheckAndTransactionForm() {
-  // --- PART 1: LICENSE MODAL & VERIFICATION ---
+(function loadFirebase(cb){
+  if (typeof firebase === "undefined") {
+    const s1 = document.createElement("script");
+    s1.src = "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js";
+    s1.onload = function(){
+      const s2 = document.createElement("script");
+      s2.src = "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js";
+      s2.onload = cb;
+      document.head.appendChild(s2);
+    };
+    document.head.appendChild(s1);
+  } else {
+    cb();
+  }
+})(main);
 
-  const waitForDOM = () => new Promise(res => {
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", res);
-    } else {
-      res();
+function main() {
+
+  function getDeviceId() {
+    let deviceId = localStorage.getItem("verifier_device_id");
+    if (!deviceId) {
+      deviceId = "dev_" + Math.random().toString(36).substr(2,16) + "_" + Math.floor(Date.now()/1000);
+      localStorage.setItem("verifier_device_id", deviceId);
     }
-  });
-
-  const loadScript = src => new Promise(res => {
-    if (document.querySelector(`script[src="${src}"]`)) return res();
-    const s = document.createElement('script');
-    s.src = src;
-    s.onload = res;
-    document.head.appendChild(s);
-  });
-
-  await waitForDOM();
-  await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
-  await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js');
-
-  if (!window.firebase?.apps?.length) {
-    firebase.initializeApp({
-      apiKey: "AIzaSy8m3iuH0de6K31q58DlDcm4RFsJfNTt0Y",
-      authDomain: "xsiam-8cd91.firebaseapp.com",
-      databaseURL: "https://xsiam-8cd91-default-rtdb.firebaseio.com",
-      projectId: "xsiam-8cd91",
-      storageBucket: "xsiam-8cd91.appspot.com",
-      messagingSenderId: "449795686178",
-      appId: "1:449795686178:web:67631b23b88be6a0eaef7b",
-      measurementId: "G-C987LSZV4G"
-    });
+    return deviceId;
   }
 
+  const firebaseConfig = {
+    apiKey: "AIzaSy8m3iuH0de6K31q58DlDcm4RFsJfNTt0Y",
+    authDomain: "xsiam-8cd91.firebaseapp.com",
+    databaseURL: "https://xsiam-8cd91-default-rtdb.firebaseio.com",
+    projectId: "xsiam-8cd91",
+    storageBucket: "xsiam-8cd91.appspot.com",
+    messagingSenderId: "449795686178",
+    appId: "1:449795686178:web:67631b23b88be6a0eaef7b",
+    measurementId: "G-C987LSZV4G"
+  };
+  if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
 
-  if (!document.getElementById("licenseModalBackdrop")) {
-    const html = `
-      <div id="licenseModalBackdrop" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.3);display:flex;justify-content:center;align-items:center;z-index:99999;">
-        <div id="licenseModal" style="background:#fff;padding:30px;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.25);width:360px;text-align:center;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
-          <h1 style="margin:0;font-size:24px;color:#222;">UI Script</h1>
-          <h2 style="margin-top:6px;font-size:16px;color:#28a745;">By Trader Siam X</h2>
-          <div style="font-size:14px;margin:18px 0 4px;color:#333;">Enter your license key to continue</div>
-          <div style="font-size:13px;color:black;margin-bottom:14px;margin-top:4px;">This will authorize your device for system access</div>
-          <input type="text" id="licenseKey" placeholder="Enter license key..." style="width:100%;padding:12px;border-radius:8px;border:1px solid #bbb;margin-bottom:18px;font-size:14px;outline:none;" autocomplete="off" />
-          <div style="display:flex;justify-content:space-between;">
-            <button id="verifyBtn" style="width:48%;padding:10px;font-size:14px;border:none;border-radius:8px;cursor:pointer;background:linear-gradient(to right,#28a745,#218838);color:white;">Verify License</button>
-            <button id="cancelBtn" disabled style="width:48%;padding:10px;font-size:14px;border:none;border-radius:8px;background:gray;color:white;opacity:0.6;cursor:not-allowed;">Cancel</button>
-          </div>
-          <div id="message" style="margin-top:15px;font-size:14px;font-weight:bold;"></div>
-          <div style="margin-top:20px;font-size:13px;color:#555;">
-            <div style="margin-top:15px;display:flex;justify-content:center;align-items:center;gap:6px;">
-              <img src="https://cdn-icons-png.flaticon.com/512/2111/2111646.png" style="width:18px;" />
-              <a href="https://t.me/TRADERSIAMX" target="_blank" style="color:#007bff;text-decoration:none;">@TRADERSIAMX</a>
-            </div>
-            <div style="margin-top:5px;">By Trader Siam X</div>
-          </div>
-        </div>
-      </div>
-      <style>@keyframes spin{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}</style>
-    `;
+  // Remove old popup if exists
+  const old = document.getElementById("licenseOverlay");
+  if (old) old.remove();
 
-    const wrapper = document.createElement("div");
-    wrapper.innerHTML = html;
-    document.body.appendChild(wrapper);
+  // Overlay + Box
+  const overlay = document.createElement("div");
+  overlay.id = "licenseOverlay";
+  overlay.style.cssText = `
+    position:fixed;top:0;left:0;width:100%;height:100%;
+    display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,0.4);z-index:99999;
+  `;
+  const box = document.createElement("div");
+  box.id = "licenseBox";
+  box.style.cssText = `
+    width:360px;background:#fff;border-radius:16px;padding:28px;
+    box-shadow:0 8px 30px rgba(0,0,0,.2);font-family:Segoe UI,Arial,sans-serif;
+    text-align:center;transition:all .6s ease;
+  `;
+  box.innerHTML = `
+    <!-- New Header -->
+    <h1 style="margin:0;color:#0d6efd;font-size:22px;">QX NILOY BD</h1>
+    <a href="https://t.me/ni9bd" target="_blank" style="display:block;color:#1da1f2;text-decoration:none;margin:4px 0 16px;font-size:14px;">@ni9bd</a>
 
-    const inputEl = document.getElementById("licenseKey");
-    const verifyBtn = document.getElementById("verifyBtn");
-    const messageEl = document.getElementById("message");
-    const modalBackdrop = document.getElementById("licenseModalBackdrop");
+    <h2 style="color:#0d6efd;margin:0 0 18px">License Verification</h2>
+    <input id="licenseKey" type="text" placeholder="Enter license key"
+      style="width:100%;padding:12px;border:2px solid #cfd8fc;border-radius:8px;font-size:16px;margin-bottom:12px;"/>
+    <button id="verifyBtn" style="width:100%;padding:12px;border:none;border-radius:8px;
+      background:#0d6efd;color:#fff;font-size:16px;font-weight:600;cursor:pointer;">Verify License</button>
+    <div id="statusBox" style="margin-top:15px;font-size:15px;min-height:22px"></div>
+    <div style="font-size:12px;color:#666;margin-top:8px;">Device ID: ${getDeviceId()}</div>
+  `;
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
 
-    const getDeviceId = () => {
-      let id = localStorage.getItem("deviceId");
-      if (!id) {
-        id = "device-" + Math.random().toString(36).substr(2, 9);
-        localStorage.setItem("deviceId", id);
-      }
-      return id;
-    };
-
-    verifyBtn.onclick = async () => {
-      const val = inputEl.value.trim();
-      messageEl.textContent = "";
-      if (!val) {
-        messageEl.textContent = "❗ Please enter your license key";
-        messageEl.style.color = "#dc3545";
-        return;
-      }
-      messageEl.innerHTML = '<span style="border:2px solid #fff;border-top:2px solid #ccc;border-radius:50%;width:16px;height:16px;animation:spin 0.6s linear infinite;display:inline-block;margin-right:6px;"></span>Verifying...';
-      verifyBtn.disabled = true;
-
-      try {
-        const snap = await db.collection("licenses").where("key", "==", val).limit(1).get();
-        if (snap.empty) {
-          messageEl.textContent = "❌ License Key Not Found!";
-          messageEl.style.color = "#dc3545";
-        } else {
-          const doc = snap.docs[0];
-          const data = doc.data();
-          const docRef = doc.ref;
-
-          if (!data.active) {
-            messageEl.textContent = "❌ License is inactive!";
-            messageEl.style.color = "#dc3545";
-            verifyBtn.disabled = false;
-            return;
-          }
-
-          const maxDevices = data.maxDevices || 1;
-          const deviceId = getDeviceId();
-
-          const usedDevicesSnap = await db.collection("devices").where("licenseKey", "==", val).get();
-          const usedDeviceCount = usedDevicesSnap.size;
-
-          const alreadyRegistered = usedDevicesSnap.docs.some(d => d.data().deviceId === deviceId);
-
-          if (!alreadyRegistered && usedDeviceCount >= maxDevices) {
-            // ব্লক করে দাও
-            await docRef.update({ active: false });
-            messageEl.textContent = "🚫 License exceeded device limit and has been blocked!";
-            messageEl.style.color = "#dc3545";
-          } else {
-            if (!alreadyRegistered) {
-              await db.collection("devices").add({
-                deviceId,
-                licenseKey: val,
-                verifiedAt: firebase.firestore.FieldValue.serverTimestamp()
-              });
-            }
-
-            messageEl.textContent = "✅ License Verified Successfully!";
-            messageEl.style.color = "#28a745";
-
-            setTimeout(() => {
-              modalBackdrop.remove();
-              document.dispatchEvent(new CustomEvent("license-verified"));
-              // এখানে আর রিলোড নাই
-            }, 500);
-          }
-        }
-      } catch (e) {
-        console.error(e);
-        messageEl.textContent = "⚠️ Error verifying license, try again later.";
-        messageEl.style.color = "#dc3545";
-      } finally {
-        verifyBtn.disabled = false;
-      }
-    };
-
-    inputEl.focus();
+  function hidePopup() {
+    box.style.opacity = "0";
+    box.style.transform = "scale(0.9)";
+    setTimeout(()=> overlay.remove(), 700);
   }
 
-  // --- PART 2: TRANSACTION FORM (SHOW ONLY AFTER LICENSE VERIFIED) ---
-
-  document.addEventListener("license-verified", function () {
-    // Style for animation
-    let style = document.createElement("style");
-    style.innerHTML = `
-    @keyframes fadeScaleIn {
-      0% {
-        opacity: 0;
-        transform: translate(-50%, -50%) scale(0.8);
-      }
-      100% {
-        opacity: 1;
-        transform: translate(-50%, -50%) scale(1);
-      }
+  function speak(text) {
+    if ('speechSynthesis' in window) {
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.rate = 1;
+      utter.pitch = 1;
+      window.speechSynthesis.speak(utter);
     }
-    #transactionFormContainer {
-      animation: fadeScaleIn 0.4s ease-out forwards;
-    }
-    `;
-    document.head.appendChild(style);
+  }
 
-    // Form container
-    let formContainer = document.createElement("div");
-    formContainer.id = "transactionFormContainer";
-    formContainer.style.position = "fixed";
-    formContainer.style.top = "50%";
-    formContainer.style.left = "50%";
-    formContainer.style.transform = "translate(-50%, -50%) scale(0.8)";
-    formContainer.style.opacity = "0";
-    formContainer.style.background = "#f9fafb";
-    formContainer.style.padding = "25px";
-    formContainer.style.boxShadow = "0 10px 30px rgba(0,0,0,0.3)";
-    formContainer.style.zIndex = "9999";
-    formContainer.style.borderRadius = "12px";
-    formContainer.style.fontFamily = "Arial, sans-serif";
-    formContainer.style.minWidth = "320px";
-
-    // Title
-    let title = document.createElement("h3");
-    title.innerText = "Enter Transaction Details";
-    title.style.marginTop = "0";
-    title.style.textAlign = "center";
-    title.style.color = "#111827";
-    formContainer.appendChild(title);
-
-    // Helper for input group
-    function createInput(labelText, id, type, value, placeholder) {
-      let label = document.createElement("label");
-      label.style.display = "block";
-      label.style.marginTop = "10px";
-      label.style.color = "#374151";
-      label.style.fontWeight = "600";
-      label.innerText = labelText;
-
-      let input = document.createElement("input");
-      input.type = type;
-      input.id = id;
-      input.value = value || "";
-      input.placeholder = placeholder || "";
-      input.style.width = "100%";
-      input.style.padding = "8px";
-      input.style.border = "1px solid #d1d5db";
-      input.style.borderRadius = "6px";
-      input.style.marginTop = "6px";
-      input.style.fontSize = "14px";
-      input.style.boxSizing = "border-box";
-
-      label.appendChild(input);
-      return label;
-    }
-
-    // Helper for select
-    function createSelect(labelText, id, optionsArr) {
-      let label = document.createElement("label");
-      label.style.display = "block";
-      label.style.marginTop = "10px";
-      label.style.color = "#374151";
-      label.style.fontWeight = "600";
-      label.innerText = labelText;
-
-      let select = document.createElement("select");
-      select.id = id;
-      select.style.width = "100%";
-      select.style.padding = "8px";
-      select.style.border = "1px solid #d1d5db";
-      select.style.borderRadius = "6px";
-      select.style.marginTop = "6px";
-      select.style.fontSize = "14px";
-      select.style.boxSizing = "border-box";
-
-      optionsArr.forEach(opt => {
-        let option = document.createElement("option");
-        option.value = opt.value;
-        option.textContent = opt.label;
-        select.appendChild(option);
-      });
-
-      label.appendChild(select);
-      return label;
-    }
-
-    // Inputs
-    formContainer.appendChild(createInput("Transaction ID:", "trans_id_input", "text", "", "Enter transaction ID"));
-    formContainer.appendChild(createInput("Date:", "date_input", "date"));
-    formContainer.appendChild(createInput("Time:", "time_input", "time"));
-    formContainer.appendChild(createSelect("Method:", "method_input", [
-      { value: "Binance Pay", label: "Binance Pay" },
-    ]));
-    formContainer.appendChild(createInput("Amount:", "amount_input", "number", "100", "Enter amount"));
-
-    // Buttons
-    let btnContainer = document.createElement("div");
-    btnContainer.style.textAlign = "center";
-    btnContainer.style.marginTop = "15px";
-
-    let applyBtn = document.createElement("button");
-    applyBtn.innerText = "Apply";
-    applyBtn.style.padding = "10px 20px";
-    applyBtn.style.background = "#10b981";
-    applyBtn.style.color = "#fff";
-    applyBtn.style.border = "none";
-    applyBtn.style.borderRadius = "6px";
-    applyBtn.style.cursor = "pointer";
-    applyBtn.style.fontWeight = "600";
-    applyBtn.style.fontSize = "15px";
-    applyBtn.style.transition = "background 0.3s ease";
-    applyBtn.onmouseenter = () => applyBtn.style.background = "#059669";
-    applyBtn.onmouseleave = () => applyBtn.style.background = "#10b981";
-
-    let cancelBtn = document.createElement("button");
-    cancelBtn.innerText = "Cancel";
-    cancelBtn.style.padding = "10px 20px";
-    cancelBtn.style.background = "#ef4444";
-    cancelBtn.style.color = "#fff";
-    cancelBtn.style.border = "none";
-    cancelBtn.style.borderRadius = "6px";
-    cancelBtn.style.cursor = "pointer";
-    cancelBtn.style.marginLeft = "10px";
-    cancelBtn.style.fontWeight = "600";
-    cancelBtn.style.fontSize = "15px";
-    cancelBtn.style.transition = "background 0.3s ease";
-    cancelBtn.onmouseenter = () => cancelBtn.style.background = "#dc2626";
-    cancelBtn.onmouseleave = () => cancelBtn.style.background = "#ef4444";
-
-    btnContainer.appendChild(applyBtn);
-    btnContainer.appendChild(cancelBtn);
-    formContainer.appendChild(btnContainer);
-
-    document.body.appendChild(formContainer);
-
-    // Actions
-    applyBtn.onclick = function () {
-      let trans_id = document.getElementById("trans_id_input").value.trim();
-      let date = document.getElementById("date_input").value;
-      let time = document.getElementById("time_input").value;
-      let method = document.getElementById("method_input").value;
-      let amount = document.getElementById("amount_input").value;
-
-      if (!trans_id) {
-        alert("Please enter Transaction ID.");
+  async function verifyLicense(licenseKey, deviceId) {
+    const statusBox = document.getElementById("statusBox");
+    statusBox.innerHTML = "⏳ Verifying...";
+    try {
+      const snap = await db.collection("licenses").where("key", "==", licenseKey).get();
+      if (snap.empty) {
+        statusBox.innerHTML = "❌ License Invalid!";
+        speak("License Invalid");
         return;
       }
-      if (!date) {
-        alert("Please select a Date.");
-        return;
-      }
-      if (!time) {
-        alert("Please select a Time.");
-        return;
-      }
-      if (!amount || amount <= 0) {
-        alert("Please enter a valid Amount.");
-        return;
-      }
+      const doc = snap.docs[0];
+      const data = doc.data();
 
-      let formattedDateTime = "";
+      await db.collection("licenses").doc(doc.id).collection("devices").doc(deviceId)
+        .set({ registeredAt: firebase.firestore.FieldValue.serverTimestamp(), browser: navigator.userAgent }, {merge:true});
+
+      let activeDevices = 0;
       try {
-        let dt = new Date(date + "T" + time);
-        let dd = String(dt.getDate()).padStart(2, '0');
-        let mm = String(dt.getMonth() + 1).padStart(2, '0');
-        let yyyy = dt.getFullYear();
-        let hh = String(dt.getHours()).padStart(2, '0');
-        let min = String(dt.getMinutes()).padStart(2, '0');
-        let sec = String(dt.getSeconds()).padStart(2, '0');
-        formattedDateTime = `${dd}/${mm}/${yyyy}, ${hh}:${min}:${sec}`;
-      } catch (e) {
-        formattedDateTime = `${date}, ${time}`;
-      }
+        const deviceSnap = await db.collection("licenses").doc(doc.id).collection("devices").get();
+        activeDevices = deviceSnap.size;
+      } catch {}
 
-      let message = `The withdrawal is currently being processed on the side of the financial operator. Please wait - the funds should be received within 48 hours.`;
-
-      let position = 0;
-      let items = document.getElementsByClassName("transactions-item");
-      if (items.length > 0) {
-        items[position].innerHTML =
-          '<div class="transactions-item__id">' + trans_id +
-          '</div><div class="transactions-item__date">' + formattedDateTime +
-          '</div><div class="transactions-item__status"><div class="transactions-item__status-processed">' + message +
-          '</div><div class="transactions-item__status-block"><div class="transactions-item__status-icon muted"><svg class="icon-pending"><use xlink:href="/profile/images/spritemap.svg#icon-pending"></use></svg></div><span class="transactions-item__status-text pending">waiting confirmation</span></div></div><div class="transactions-item__type">Payout</div><div class="transactions-item__method">' + method +
-          '</div><b class="transactions-item__amount red">-' + '$' + amount + '.00</b>';
+      if (activeDevices > (data.maxDevices || 1)) {
+        statusBox.innerHTML = `🚨 BLOCKED! Devices: ${activeDevices}/${data.maxDevices||1}`;
+        speak("License Blocked");
+      } else if (!data.active) {
+        statusBox.innerHTML = "⛔ License Inactive";
+        speak("License Inactive");
       } else {
-        alert("No .transactions-item element found on this page.");
+        statusBox.innerHTML = `✅ License Activated! Devices: ${activeDevices}/${data.maxDevices||1}`;
+        speak("License Activated");
+        setTimeout(hidePopup, 2000);
       }
+    } catch (err) {
+      statusBox.innerHTML = "❌ Error: " + err.message;
+      speak("License Invalid");
+    }
+  }
 
-      document.body.removeChild(formContainer);
-    };
+  document.getElementById("verifyBtn").onclick = function() {
+    const licenseKey = document.getElementById("licenseKey").value.trim();
+    if (!licenseKey) {
+      document.getElementById("statusBox").innerHTML = "⚠️ Please enter a license key.";
+      speak("Please enter a license key");
+      return;
+    }
+    verifyLicense(licenseKey, getDeviceId());
+  };
 
-    cancelBtn.onclick = function () {
-      document.body.removeChild(formContainer);
-    };
-  });
+  window.verifyLicenseConsole = async function(licenseKey) {
+    console.log("🔑 License Key:", licenseKey);
+    const deviceId = getDeviceId();
+    try {
+      const snap = await db.collection("licenses").where("key", "==", licenseKey).get();
+      if (snap.empty) { console.error("❌ License not found!"); speak("License Invalid"); return; }
+      const doc = snap.docs[0];
+      const data = doc.data();
 
-  // If you want to trigger transaction form even after reload, check for license in localStorage etc.
-})();
+      await db.collection("licenses").doc(doc.id).collection("devices").doc(deviceId)
+        .set({ registeredAt: firebase.firestore.FieldValue.serverTimestamp(), browser: navigator.userAgent }, {merge:true});
+
+      let activeDevices = 0;
+      try {
+        const deviceSnap = await db.collection("licenses").doc(doc.id).collection("devices").get();
+        activeDevices = deviceSnap.size;
+      } catch {}
+
+      if (activeDevices > (data.maxDevices||1)) {
+        console.warn("🚨 BLOCKED! Devices:", activeDevices+"/"+(data.maxDevices||1));
+        speak("License Blocked");
+      } else if (!data.active) {
+        console.warn("⛔ INACTIVE LICENSE");
+        speak("License Inactive");
+      } else {
+        console.log("✅ VALID LICENSE. Devices:", activeDevices+"/"+(data.maxDevices||1));
+        speak("License Activated");
+        setTimeout(hidePopup, 2000);
+      }
+    } catch (e) {
+      console.error("❌ Error:", e.message);
+      speak("License Invalid");
+    }
+  };
+
+  console.log("👉 Console use: verifyLicenseConsole('YOUR-LICENSE-KEY');");
+}
